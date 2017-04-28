@@ -191,6 +191,15 @@ def main():
 	parser.add_argument('startObj',help="the file or directory to hash/ move/ copy/ verify/ delete")
 	parser.add_argument('endObj',nargs='?',default=os.getcwd(),help="the destination parent directory")
 	args = parser.parse_args()
+	###INIT VARS###
+	flist = []
+	sflist = []
+	eflist = []
+	ehd = []
+	shd = []
+	matches = []
+	mismatches = []
+	###END INIT###
 	
 	#housekeeping
 	startObj = args.startObj.replace("\\","/") #everything is gonna break if we don't do this for windows ppl
@@ -217,23 +226,28 @@ def main():
 	#make lists of files
 	flist = makeflist(startObj, endObj, startObjIsDir, args.a)
 	sflist = [x for x,_ in flist] #make list of startfiles
-	eflist = [x for _,x in flist] #make list of endfiles
+	if args.nm is False:
+		eflist = [x for _,x in flist] #make list of endfiles
 
 	#copy files from source to destination
 	if args.v is False and args.nm is False:
 		copyfiles(flist)
 	
 	#make dicts of filenames : hashes
-	ehd = makehlist(eflist, args.a, hashlength, grip) #end hash dictionary
+	if args.nm is False:
+		ehd = makehlist(eflist, args.a, hashlength, grip) #end hash dictionary
 	shd = makehlist(sflist, args.a, hashlength, True) #start hash dictionary
 	
-
 	#print the hashes
 	if args.np is False:
 		sfhflist = printhashes(sflist,shd,eflist,ehd,args.a)
 	
 	#compare the dict values and provide feedback
-	matches, mismatches = compare(shd, ehd)
+	if args.nm is False:
+		matches, mismatches = compare(shd, ehd)
+	elif args.nm is True:
+		for skey in shd:
+			print "srce " + skey + " " + shd[skey]
 	for m in mismatches:
 		print "The following file hash did not match: " + m
 	
@@ -244,7 +258,5 @@ def main():
 	#print log to cwd of what happened
 	if args.l is True:
 		log(matches,mismatches,ehd)
-
-	
 
 main()
