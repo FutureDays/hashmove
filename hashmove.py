@@ -56,13 +56,13 @@ def makeflist(startObj,dest,startObjIsDir,hashalg,flist=[]):
 	flist = zip(it, it) #uhhhh, formally make that object into a list
 	return flist
 
-def makehlist(aflist,hashalg,grip):
+def makehlist(aflist,hashalg,hashlength,grip):
 	hd = {} #if you declare this a default in the function def you'll get a memory error :/
 	for af in aflist:
 		afhashfile = af + "." + hashalg #make a name for the start file's hash file
 		if grip is True and os.path.isfile(afhashfile): #check to see if it exists (so we don't recalc)
 			with open(afhashfile,'r') as f: #open it
-				afhash = re.search('\w{32}',f.read()) #find an alphanumeric string that's 32 chars long (works for md5)
+				afhash = re.search('\w{'+hashlength+'}',f.read()) #find an alphanumeric string that's 32 chars long (works for md5)
 			hd[os.path.basename(af)] = afhash.group() #append the key : value pairs to the start hash dictionary
 		else:
 			hd[os.path.basename(af)] = hashfile(open(af, 'rb'), hashalg)
@@ -187,6 +187,7 @@ def main():
 	parser.add_argument('-v','--verify',action='store_true',dest='v',default=False,help="verify mode, verifies sidecar hash(es) for file or dir")
 	parser.add_argument('-a','--algorithm',action='store',dest='a',default='md5',choices=['md5','sha1','sha256','sha512'],help="the hashing algorithm to use")
 	parser.add_argument('-np','--noprint',action='store_true',dest='np',default=False,help="no print mode, don't generate sidecar hash files")
+	parser.add_argument('-nm','--nomove',action='store_true',dest='nm',default=False,help="no move mode, hash the file in place only")
 	parser.add_argument('startObj',help="the file or directory to hash/ move/ copy/ verify/ delete")
 	parser.add_argument('endObj',nargs='?',default=os.getcwd(),help="the destination parent directory")
 	args = parser.parse_args()
@@ -203,6 +204,8 @@ def main():
 		f = open(os.devnull,'w')
 		sys.stdout = f
 	hashAlgorithm = hashlib.new(args.a) #creates a hashlib object that is the algorithm we're using
+	hashlengths = {'md5':'32','sha1':'40','sha256':'64','sha512':'128'}
+	hashlength = hashlengths[args.a] #set value for comparison later
 	if os.path.isdir(startObj): #flag if the start object is a directory or not
 		startObjIsDir = True
 	elif os.path.isfile(startObj):
@@ -213,16 +216,16 @@ def main():
 		
 	#make lists of files
 	flist = makeflist(startObj, endObj, startObjIsDir, args.a)
-	sflist = [x for x,_ in flist]
-	eflist = [x for _,x in flist]
+	sflist = [x for x,_ in flist] #make list of startfiles
+	eflist = [x for _,x in flist] #make list of endfiles
 
 	#copy files from source to destination
-	if args.v is False:
+	if args.v is False and args.nm is False:
 		copyfiles(flist)
 	
 	#make dicts of filenames : hashes
-	ehd = makehlist(eflist, args.a, grip)
-	shd = makehlist(sflist, args.a, True)
+	ehd = makehlist(eflist, args.a, hashlength, grip) #end hash dictionary
+	shd = makehlist(sflist, args.a, hashlength, True) #start hash dictionary
 	
 
 	#print the hashes
@@ -241,8 +244,7 @@ def main():
 	#print log to cwd of what happened
 	if args.l is True:
 		log(matches,mismatches,ehd)
-	
-	return
+
 	
 
 main()
