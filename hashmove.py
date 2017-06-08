@@ -91,8 +91,6 @@ def printhashes(sflist,shd,eflist,ehd,hashalg):
 		efhfile = ef + "." + hashalg
 		if os.path.exists(efhfile):
 			os.remove(efhfile)
-			print "here"
-			foo = raw_input("eh")
 		txt = open(efhfile, "w")
 		txt.write(ehd[os.path.basename(ef)] + " *" + os.path.basename(ef))
 		txt.close() 
