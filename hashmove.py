@@ -53,7 +53,7 @@ def makeflist(startObj,dest,startObjIsDir,hashalg,flist=[]):
 				if not ext == '.' + hashalg: #check that the file found doesn't have the hash extension (no hashes of hashes here my friend)
 					flist.extend((startFile,endObj)) #add these items as a tuple to the list of files
 	it = iter(flist) #i dunno but it's necessary
-	flist = zip(it, it) #uhhhh, formally make that object into a list
+	flist = list(zip(it, it)) #uhhhh, formally make that object into a list
 	return flist
 
 def makehlist(aflist,hashalg,hashlength,grip):
@@ -105,8 +105,8 @@ def copyfiles(flist):
 	cmd=None
 
 	for sf,ef in flist:
-		print ""
-		print "copying " + os.path.basename(sf) + " from source to destination..."
+		print("")
+		print("copying " + os.path.basename(sf) + " from source to destination...")
 		_dest = os.path.dirname(os.path.normpath(ef)) 
 		if not os.path.exists(_dest):
 			os.makedirs(_dest)
@@ -117,7 +117,7 @@ def copyfiles(flist):
 			dest = os.path.dirname(ef)
 			name,ext = os.path.split(sf)
 			cmd=['robocopy',srce,dest,ext]
-			print cmd
+			print(cmd)
 		subprocess.call(cmd)
 	return
 	
@@ -159,8 +159,8 @@ def compare(shd, ehd):
 	matches = []
 	mismatches = []
 	for skey in shd:
-		print "srce " + skey + " " + shd[skey]
-		print "dest " + skey + " " + ehd[skey]
+		print("srce " + skey + " " + shd[skey])
+		print("dest " + skey + " " + ehd[skey])
 		if not shd[skey].lower() == ehd[skey].lower():
 			mismatches.extend([skey])
 		else:
@@ -222,7 +222,7 @@ def main():
 	elif os.path.isfile(startObj):
 		startObjIsDir = False
 	else: #if something is up we gotta exit
-		print "Buddy, something isn't right here..."
+		print("Buddy, something isn't right here...")
 		sys.exit()
 		
 	#make lists of files
@@ -249,9 +249,9 @@ def main():
 		matches, mismatches = compare(shd, ehd)
 	elif args.nm is True:
 		for skey in shd:
-			print "srce " + skey + " " + shd[skey]
+			print("srce " + skey + " " + shd[skey])
 	for m in mismatches:
-		print "The following file hash did not match: " + m
+		print("The following file hash did not match: " + m)
 	
 	#based on feedback, remove start objects
 	if args.c is False and args.v is False:
