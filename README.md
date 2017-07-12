@@ -26,7 +26,7 @@ python hashmove.py -l /home/path/to/dir/a /home/path/to/dir/b
 python hashmove.py -v "/home/path to/dir/you question" /home/path/to/dir/with/hashes
 
 
-##pro-tip
+## pro-tip
 
 if you have a directory with lots of subdirectories you'd like to move, it's probably better to loop through your parent dir and hashmove each subdir individually, rather than just hashmoving the parent.\
 
