@@ -10,6 +10,16 @@
 #don't print sidecar files (-np)
 #print logs to current directory (-l)
 
+'''
+to do:
+change all var passes to obj passes via dotdict
+process functions for specific cases
+better flow control and returns
+better function names
+make it more modular
+run pylint on it
+'''
+
 #######################################################################################################################
 #here's a list of the lists used in this script because there's a lot
 #flist = file list. composed of string tuples of start and end file paths
@@ -46,7 +56,6 @@ class dotdict(dict):
 	__setattr__ = dict.__setitem__
 	__delattr__ = dict.__delitem__
 
-#generate lists of pairs of start and end files
 def makeflist(startObj,dest,startObjIsDir,hashalg,hashlengths,flist=[]):
 	'''
 	returns a list of file(s) to hashmove
