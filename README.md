@@ -25,6 +25,11 @@ python hashmove.py -l /home/path/to/dir/a /home/path/to/dir/b
 
 python hashmove.py -v "/home/path to/dir/you question" /home/path/to/dir/with/hashes
 
+**move a bag***
+
+python hashmove.py -b /path/to/bag/or/dir /dest
+
+bagmove also works with copy and no-move. python 2 only
 
 ## pro-tip
 
