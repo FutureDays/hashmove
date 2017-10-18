@@ -33,6 +33,18 @@ import re
 import argparse
 import getpass
 import subprocess
+try:
+	sys.path.append(os.path.join(os.path.dirname(sys.path[0]), "bagit-python"))
+	import bagit
+except:
+	bagit = False
+	
+
+class dotdict(dict):
+	"""dot.notation access to dictionary attributes"""
+	__getattr__ = dict.get
+	__setattr__ = dict.__setitem__
+	__delattr__ = dict.__delitem__
 
 #generate lists of pairs of start and end files
 def makeflist(startObj,dest,startObjIsDir,hashalg,hashlengths,flist=[]):
@@ -134,7 +146,7 @@ def copyfiles(flist):
 			dest = os.path.dirname(ef)
 			name,ext = os.path.split(sf)
 			cmd=['robocopy',srce,dest,ext]
-			print cmd
+		print cmd
 		subprocess.call(cmd)
 	
 def deletefiles(sflist,sfhflist,startObj,matches,startObjIsDir,hashlengths):
@@ -208,6 +220,54 @@ def log(matches,mismatches,ehd):
 			txtfile.write(mis + " : " + ehd[mis] + "\n")
 	txtFile.close()
 
+def init_bag(bagDir,alg):
+	'''
+	returns a bag instance for a given directory
+	makes bare dir into bag if necessary - won't bag a bag
+	'''
+	try:
+		bag = bagit.Bag(bagDir)
+		return bag
+	except bagit.BagError,e:
+		bag = bagit.make_bag(bagDir,None,1,alg)
+		if bag.is_valid():
+			return bag
+		else:
+			return False
+
+def validate_bag(bag):
+	'''
+	validates the bag against the payload and manifest
+	'''
+	try:
+		bag.validate()
+		return True
+	except bagit.BagValidationError,e:
+		return e	
+
+def bagmove(init,args):
+	'''
+	works with LoC bag storage/ transmission standard
+	'''
+	bag = init_bag(init.startObj,init.hashAlgorithm)
+	if bag is False:
+		print "bag initialization failed"
+		sys.exit()
+	if args.nm is False:
+		flist = makeflist(init.startObj,init.endObj,True,init.hashAlgorithm,init.hashlengths)
+		copyfiles(flist)
+		bag = init_bag(init.endObj,init.hashAlgorithm)
+		if bag is False:
+			print "bag initialization failed"
+			sys.exit()	
+		valid = validate_bag(bag)
+		if valid is not True:
+			print "ERROR: There was an issue moving that bag"
+			print valid
+		elif args.c is False:
+			shutil.rmtree(init.startObj)
+			print "bagmove completed successfully"
+		
 def make_args():
 	'''
 	initialize arguments from the cli
@@ -220,6 +280,7 @@ def make_args():
 	parser.add_argument('-a','--algorithm',action='store',dest='a',default='md5',choices=['md5','sha1','sha256','sha512'],help="the hashing algorithm to use")
 	parser.add_argument('-np','--noprint',action='store_true',dest='np',default=False,help="no print mode, don't generate sidecar hash files")
 	parser.add_argument('-nm','--nomove',action='store_true',dest='nm',default=False,help="no move mode, hash the file in place only")
+	parser.add_argument('-b','--bag',action='store_true',dest='b',default=False,help="move a bag")
 	parser.add_argument('-g','--grip',action='store_true',dest='g',default=False,help="use hash values from existing sidecar files, default is False")
 	parser.add_argument('startObj',help="the file or directory to hash/ move/ copy/ verify/ delete")
 	parser.add_argument('endObj',nargs='?',default=os.getcwd(),help="the destination parent directory")
@@ -261,6 +322,22 @@ def main():
 	else: #if something is up we gotta exit
 		print "Buddy, something isn't right here..."
 		sys.exit()
+	
+	#work with bags
+	if args.b is True:
+		if bagit is False:
+			print "You need to install bagit-python in the same parent directory as this script"
+			print "hashmove aborting"
+			sys.exit()
+		init = dotdict({})
+		init.startObj = startObj
+		init.endObj = endObj
+		init.hashAlgorithm = [args.a]
+		init.hashlengths = hashlengths
+		init.hashlength = hashlength
+		init.startObjIsDir = startObjIsDir
+		bagmove(init,args)
+		sys.exit()
 		
 	#make lists of files
 	flist = makeflist(startObj, endObj, startObjIsDir, args.a, hashlengths)
@@ -299,5 +376,5 @@ def main():
 	#print log to cwd of what happened
 	if args.l is True:
 		log(matches,mismatches,ehd)
-
-main()
+if __name__ == "__main__":
+	main()	
