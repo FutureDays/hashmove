@@ -7,7 +7,7 @@
 #verify against another directory or the given directory (-v)
 #copy files, don't delete from source directory (-c)
 #quiet mode (-q)
-#don't print sidecar files (-np)
+#eXclude Root mode (-xr)
 #print logs to current directory (-l)
 
 #######################################################################################################################
@@ -38,7 +38,7 @@ def makeFileList(sourceList,dest,hashalg,hashlengths,excludeRoot):
 			flist.extend([((s + "." + hashalg),(destinationObj + "." + hashalg))])
 		#if the start object is a directory things get tricky
 		elif os.path.isdir(s) is True:
-			if excludeRoot:
+			if excludeRoot: #this part makes the -xr flag work
 				rootDirName = ""
 			else:
 				rootDirName = os.path.basename(s)
@@ -46,7 +46,6 @@ def makeFileList(sourceList,dest,hashalg,hashlengths,excludeRoot):
 				s = s + "/" #later, when we do some string subs, this keeps os.path.join() from breaking on a leading / I HATE HAVING TO DO THIS
 			for dirs, subdirs, files in os.walk(s): #walk recursively through the dirtree
 				for x in files: #ok, for all files rooted at start object
-					#directoryName = (os.path.basename(os.path.dirname(dirs)))
 					b = os.path.join(dirs,x) #make the full path to the file
 					b = b.replace(s,'') #extract just path relative to startObj (the subdirtree that x is in)
 					destinationObj = os.path.join(dest,rootDirName,b) #recombine the subdirtree with given destination (and file.extension)
@@ -92,14 +91,14 @@ def readHash(hashFile, hashlength):
 #verify's a hash from the sidecar file
 def verifyHash(sidecarFile, hashalg, hashlength):
 	writtenHash = readHash(sidecarFile, hashlength) #read the hash written in the sidecar
-	#print("file: " + os.path.basename(sidecarFile) + "\t\tVerifying Checkum!")
+	print("file: " + os.path.basename(sidecarFile) + "\t\tVerifying Checkum!")
 	generatedHash = generateHash(sidecarFile.replace("." + hashalg, ""), hashalg) #generate the hash of the associated file
 	if writtenHash == generatedHash: #then verify the checksums
 		pass
-		#print("file: " + os.path.basename(sidecarFile) + "\t\tChecksum Verified!")
+		print("file: " + os.path.basename(sidecarFile) + "\t\tChecksum Verified!")
 	else:
 		pass
-		#print("file: " + os.path.basename(sidecarFile) + "\t\tERROR: Checksum Verification Failed!")
+		print("file: " + os.path.basename(sidecarFile) + "\t\tERROR: Checksum Verification Failed!")
 
 def removeUpToDateFiles(flist, hashalg, hashlength):
 	'''
@@ -120,7 +119,6 @@ def removeUpToDateFiles(flist, hashalg, hashlength):
 					removeFilesList.extend(((sf + "." + hashalg),(df + "." + hashalg)))
 			else: #if destination files are older than source files, need to resync
 				pass
-	#print(removeFilesList)
 	flist = [x for x in flist if x not in removeFilesList] #remove the files already there from the file list
 	flist.extend(reloadFileList)
 	return flist
@@ -150,14 +148,13 @@ def copyFiles(src,dest):
 		name,ext = os.path.split(src)
 		cmd=['robocopy',srce,dest,ext]
 		print(cmd)
-	#print("file: " + os.path.basename(src) + "\t\tcopying from source to destination...")
+	print("file: " + os.path.basename(src) + "\t\tcopying from source to destination...")
 	subprocess.call(cmd)
-	#print("file: " + os.path.basename(src) + "\t\tDone!")
+	print("file: " + os.path.basename(src) + "\t\tDone!")
 
 #this steps through the file list, creates checksums when needed, moves files, and verifies
 def processList(flist, hashalg, hashlength):
 	for sf,df in flist:
-		#print(sf)
 		if (hashalg not in sf):	#if not a hash file
 			if os.path.exists(sf + "." + hashalg): #see if hash file exists
 				if compare_modtime(sf, sf + "." + hashalg): #check if hash file is newer than actual file
@@ -190,6 +187,23 @@ def compare_filesize(file1, file2):
 	else:
 		return False
 
+def initLog(sourceList,destination,hashalg):
+	'''
+	initializes log file
+	'''
+	txtFile = open(destination + "/LoadingScript.log", "a+")
+	txtFile.write("Load and Verify Script Started at: " + time.strftime("%Y-%m-%d_%H%M%S") + "\n")
+	for f in sourceList:
+		txtFile.write("From: " + f + "\n")
+	txtFile.write("To: " + destination + "\n")
+	txtFile.write("Hash algorithm: " + hashalg + "\n")
+	txtFile.write("\n\n")
+ 	txtFile.close()
+	print("ok")
+
+def logAddLine():
+	txtFile = open(destination + "/LoadingScript.log", "a+")
+
 def make_args():
 	'''
 	initialize arguments from the cli
@@ -213,7 +227,6 @@ def main():
 	flist = []
 	###END INIT###
 
-	print(args.xr)
 	#housekeeping
 	if len(args.sourceAndDestObj) < 2: #if less than two input arguments we have to exit
 		print("CRITICAL ERROR: You must give this script at least two input arguments, with the last argument being the destination directory")
@@ -226,6 +239,7 @@ def main():
 		sys.exit()
 
 	sourceList = args.sourceAndDestObj
+
 	for s in sourceList:
 		s.replace("\\","/") #everything is gonna break if we don't do this for windows ppl
 	if args.q is True: #quiet mode redirects standard out to nul
@@ -234,6 +248,9 @@ def main():
 	hashAlgorithm = hashlib.new(args.a) #creates a hashlib object that is the algorithm we're using
 	hashlengths = {'md5':'32','sha1':'40','sha256':'64','sha512':'128'}
 	hashlength = hashlengths[args.a] #set value for comparison later
+
+	#Initialize log
+	initLog(sourceList,destinationDir,args.a)
 
 	#Create giant list of input files and output files
 	flist = makeFileList(sourceList,destinationDir,args.a,hashlengths,args.xr)
