@@ -26,31 +26,35 @@ import getpass
 import subprocess
 
 #generate list of destination files of pairs of start and end files
-def makeFileList(sourceObj,dest,sourceObjIsDir,hashalg,hashlengths):
+def makeFileList(sourceList,dest,hashalg,hashlengths):
 	'''
 	returns a list of file(s) to hashmove
 	'''
 	flist = []
-	if sourceObjIsDir is False: #if first argument is a file it's p easy
-		destinationObj = os.path.join(dest, os.path.basename(sourceObj)) # this is the file that we wanted to move, in its destination
-		return (sourceObj, destinationObj)
-	#if the start object is a directory things get tricky
-	else:
-		if not sourceObj.endswith("/"):
-			sourceObj = sourceObj + "/" #later, when we do some string subs, this keeps os.path.join() from breaking on a leading / I HATE HAVING TO DO THIS
-		for dirs, subdirs, files in os.walk(sourceObj): #walk recursively through the dirtree
-			for x in files: #ok, for all files rooted at start object
-				b = os.path.join(dirs,x) #make the full path to the file
-				b = b.replace(sourceObj,'') #extract just path relative to startObj (the subdirtree that x is in)
-				destinationObj = os.path.join(dest,b) #recombine the subdirtree with given destination (and file.extension)
-				sourceFile = os.path.join(dirs, x) #grab the start file full path
-				sourceFilename, ext = os.path.splitext(sourceFile) #separate extension from filename
-				sourceBasename = os.path.basename(sourceFilename)
-				if (not sourceBasename.startswith('.')) and (not ext.replace(".","") in hashlengths): #check that the file isn't DS_store and that file found doesn't have the hash extension (no hashes of hashes here my friend)
-					flist.extend((sourceFile,destinationObj)) #add these items as a tuple to the list of files
-					flist.extend(((sourceFile + "." + hashalg),(destinationObj + "." + hashalg)))
-	it = iter(flist) #i dunno but it's necessary
-	flist = list(zip(it, it)) #uhhhh, formally make that object into a list
+	for s in sourceList:
+		if os.path.isdir(s) is False: #if first argument is a file it's p easy
+			destinationObj = os.path.join(dest, os.path.basename(s)) # this is the file that we wanted to move, in its destination
+			flist.extend([(s, destinationObj)])
+			flist.extend([((s + "." + hashalg),(destinationObj + "." + hashalg))])
+		#if the start object is a directory things get tricky
+		elif os.path.isdir(s) is True:
+			if not s.endswith("/"):
+				s = s + "/" #later, when we do some string subs, this keeps os.path.join() from breaking on a leading / I HATE HAVING TO DO THIS
+			for dirs, subdirs, files in os.walk(s): #walk recursively through the dirtree
+				for x in files: #ok, for all files rooted at start object
+					#directoryName = (os.path.basename(os.path.dirname(dirs)))
+					b = os.path.join(dirs,x) #make the full path to the file
+					b = b.replace(s,'') #extract just path relative to startObj (the subdirtree that x is in)
+					destinationObj = os.path.join(dest,b) #recombine the subdirtree with given destination (and file.extension)
+					sourceFile = os.path.join(dirs, x) #grab the start file full path
+					sourceFilename, ext = os.path.splitext(sourceFile) #separate extension from filename
+					sourceBasename = os.path.basename(sourceFilename)
+					if (not sourceBasename.startswith('.')) and (not ext.replace(".","") in hashlengths): #check that the file isn't DS_store and that file found doesn't have the hash extension (no hashes of hashes here my friend)
+						flist.extend([(sourceFile,destinationObj)]) #add these items as a tuple to the list of files
+						flist.extend([((sourceFile + "." + hashalg),(destinationObj + "." + hashalg))])
+		else:
+			print("Critical Error. Could not determine if the input is a file or directory. Something is very wrong.")
+			sys.exit()
 	return flist
 
 
@@ -84,12 +88,14 @@ def readHash(hashFile, hashlength):
 #verify's a hash from the sidecar file
 def verifyHash(sidecarFile, hashalg, hashlength):
 	writtenHash = readHash(sidecarFile, hashlength) #read the hash written in the sidecar
-	print("file: " + os.path.basename(sidecarFile) + "\t\tVerifying Checkum!")
+	#print("file: " + os.path.basename(sidecarFile) + "\t\tVerifying Checkum!")
 	generatedHash = generateHash(sidecarFile.replace("." + hashalg, ""), hashalg) #generate the hash of the associated file
 	if writtenHash == generatedHash: #then verify the checksums
-		print("file: " + os.path.basename(sidecarFile) + "\t\tChecksum Verified!")
+		pass
+		#print("file: " + os.path.basename(sidecarFile) + "\t\tChecksum Verified!")
 	else:
-		print("file: " + os.path.basename(sidecarFile) + "\t\tERROR: Checksum Verification Failed!")
+		pass
+		#print("file: " + os.path.basename(sidecarFile) + "\t\tERROR: Checksum Verification Failed!")
 
 def removeUpToDateFiles(flist, hashalg, hashlength):
 	'''
@@ -140,21 +146,24 @@ def copyFiles(src,dest):
 		name,ext = os.path.split(src)
 		cmd=['robocopy',srce,dest,ext]
 		print(cmd)
-	print("file: " + os.path.basename(src) + "\t\tcopying from source to destination...")
+	#print("file: " + os.path.basename(src) + "\t\tcopying from source to destination...")
 	subprocess.call(cmd)
-	print("file: " + os.path.basename(src) + "\t\tDone!")
+	#print("file: " + os.path.basename(src) + "\t\tDone!")
 
 #this steps through the file list, creates checksums when needed, moves files, and verifies
 def processList(flist, hashalg, hashlength):
 	for sf,df in flist:
+		#print(sf)
 		if (hashalg not in sf):	#if not a hash file
 			if os.path.exists(sf + "." + hashalg): #see if hash file exists
 				if compare_modtime(sf, sf + "." + hashalg): #check if hash file is newer than actual file
 					copyFiles(sf,df) #if hash is newer, we're good to move the file
 				else:
 					writeHash(sf, hashalg) #if has is older, recreate sidecar file
+					copyFiles(sf,df) #once the hash is written we can move the file
 			else:
 				writeHash(sf, hashalg) #if no sidecar file exists, make one!
+				copyFiles(sf,df) #once the hash is written we can move the file
 		else: #if it's a hash file
 			copyFiles(sf,df) #move the hashe
 			verifyHash(df, hashalg, hashlength) #verify the checksum from the sidecar file
@@ -182,11 +191,11 @@ def make_args():
 	initialize arguments from the cli
 	'''
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-c','--copy',action='store_true',dest='c',default=False,help="copy, don't delete from source")
+	parser.add_argument('-d','--delete',action='store_true',dest='c',default=False,help="delete source files after copying")
 	parser.add_argument('-q','--quiet',action='store_true',dest='q',default=False,help="quiet mode, don't print anything to console")
 	parser.add_argument('-a','--algorithm',action='store',dest='a',default='md5',choices=['md5','sha1','sha256','sha512'],help="the hashing algorithm to use")
-	parser.add_argument('sourceObj',help="the file or directory to hash/ move/ copy/ verify/ delete")
-	parser.add_argument('destinationDir',nargs='?',default=os.getcwd(),help="the destination parent directory")
+	parser.add_argument('sourceAndDestObj',nargs='+',help="the file or directory to hash/ move/ copy/ verify/ delete")
+	#parser.add_argument('destinationDir',nargs='?',default=os.getcwd(),help="the destination parent directory")
 	return parser.parse_args()
 
 def main():
@@ -199,24 +208,30 @@ def main():
 	flist = []
 	###END INIT###
 
+
 	#housekeeping
-	sourceObj = args.sourceObj.replace("\\","/") #everything is gonna break if we don't do this for windows ppl
+	if len(args.sourceAndDestObj) < 2: #if less than two input arguments we have to exit
+		print("CRITICAL ERROR: You must give this script at least two input arguments, with the last argument being the destination directory")
+		sys.exit()
+
+	destinationDir = args.sourceAndDestObj.pop(-1)
+
+	if os.path.isdir(destinationDir) is False:
+		print("CRITICAL ERROR: The last argument must be a directory")
+		sys.exit()
+
+	sourceList = args.sourceAndDestObj
+	for s in sourceList:
+		s.replace("\\","/") #everything is gonna break if we don't do this for windows ppl
 	if args.q is True: #quiet mode redirects standard out to nul
 		f = open(os.devnull,'w')
 		sys.stdout = f
 	hashAlgorithm = hashlib.new(args.a) #creates a hashlib object that is the algorithm we're using
 	hashlengths = {'md5':'32','sha1':'40','sha256':'64','sha512':'128'}
 	hashlength = hashlengths[args.a] #set value for comparison later
-	if os.path.isdir(sourceObj): #flag if the start object is a directory or not
-		sourceObjIsDir = True
-	elif os.path.isfile(sourceObj):
-		sourceObjIsDir = False
-	else: #if something is up we gotta exit
-		print("My friend, something isn't right here...")
-		sys.exit()
 
 	#Create giant list of input files and output files
-	flist = makeFileList(sourceObj,args.destinationDir,sourceObjIsDir,args.a,hashlengths)
+	flist = makeFileList(sourceList,destinationDir,args.a,hashlengths)
 
 	#updates file list, removing all files that were already there
 	flist = removeUpToDateFiles(flist, args.a, hashlength)
