@@ -69,7 +69,7 @@ def makehlist(aflist,hashalg,hashlength,grip):
 		if grip is True and os.path.isfile(afhashfile): #check to see if it exists (so we don't recalc)
 			with open(afhashfile,'r') as f: #open it
 				afhash = re.search('\w{'+hashlength+'}',f.read()) #find an alphanumeric string that's 32 chars long (works for md5)
-			hd[os.path.basename(af)] = afhash.group() #append the key : value pairs to the start hash dictionary
+				hd[os.path.basename(af)] = afhash.group() #append the key : value pairs to the start hash dictionary
 		else:
 			hd[os.path.basename(af)] = hashfile(open(af, 'rb'), hashalg)
 	return hd
@@ -95,20 +95,27 @@ def printhashes(sflist,shd,eflist,ehd,hashalg):
 	for sf in sflist: #loop thru list of start files
 		sfhfile = sf + "." + hashalg #make the filename for the sidecar file
 		sfhflist.extend([sfhfile])
-		if os.path.exists(sfhfile):
-			os.remove(sfhfile)
-		txt = open(sfhfile, "w") #old school
-		txt.write(shd[os.path.basename(sf)] + " *" + os.path.basename(sf)) #lmao at these var names, writes [the start hash from the start hash dict *the filename]
-		txt.close()
+		if os.path.exists(sfhfile): #check to see if hash exists
+			if compare_modtime(sf, sfhfile): #if hash exists and was after the last file modification time then continue
+				print("Hash was created after last file modification. Continuing with move")
+			else: #if hash exists and was BEFORE the last file modification time then recreate the hash and throw a warning
+				print("WARNING: File was modified after hash was created. Recreating hash now")
+				txt = open(sfhfile, "w") #old school
+				txt.write(shd[os.path.basename(sf)] + " *" + os.path.basename(sf)) #lmao at these var names, writes [the start hash from the start hash dict *the filename]
+				txt.close()
+		else:
+			txt = open(sfhfile, "w") #old school
+			txt.write(shd[os.path.basename(sf)] + " *" + os.path.basename(sf)) #lmao at these var names, writes [the start hash from the start hash dict *the filename]
+			txt.close()
 	for ef in eflist: #repeat for endfiles
 		efhfile = ef + "." + hashalg
 		if os.path.exists(efhfile):
 			os.remove(efhfile)
 		txt = open(efhfile, "w")
 		txt.write(ehd[os.path.basename(ef)] + " *" + os.path.basename(ef))
-		txt.close() 
+		txt.close()
 	return sfhflist
-	
+
 def copyfiles(flist):
 	'''
 	using the native copy utility for a given platform,
@@ -124,7 +131,7 @@ def copyfiles(flist):
 	for sf,ef in flist:
 		print("")
 		print("copying " + os.path.basename(sf) + " from source to destination...")
-		_dest = os.path.dirname(os.path.normpath(ef)) 
+		_dest = os.path.dirname(os.path.normpath(ef))
 		if not os.path.exists(_dest):
 			os.makedirs(_dest)
 		if mac:
@@ -136,7 +143,7 @@ def copyfiles(flist):
 			cmd=['robocopy',srce,dest,ext]
 			print(cmd)
 		subprocess.call(cmd)
-	
+
 def deletefiles(sflist,sfhflist,startObj,matches,startObjIsDir,hashlengths):
 	'''
 	based on the list of files that matched,
@@ -176,7 +183,7 @@ def deletefiles(sflist,sfhflist,startObj,matches,startObjIsDir,hashlengths):
 				os.remove(os.path.join(rmd,file))
 		time.sleep(1.0)
 		os.rmdir(rmd)
-	
+
 def compare(shd, ehd):
 	'''
 	compare hashes in start hash dictionary and end hash dictionary
@@ -208,6 +215,15 @@ def log(matches,mismatches,ehd):
 			txtfile.write(mis + " : " + ehd[mis] + "\n")
 	txtFile.close()
 
+#compares two files. If inFile was created before inFileSC then return true. else return false
+def compare_modtime(inFile, inFileSC):
+	inFileMod = os.path.getmtime(inFile)
+	inFileSCMod = os.path.getmtime(inFileSC)
+	if inFileSCMod > inFileMod:
+		return True
+	else:
+		return False
+
 def make_args():
 	'''
 	initialize arguments from the cli
@@ -224,7 +240,7 @@ def make_args():
 	parser.add_argument('startObj',help="the file or directory to hash/ move/ copy/ verify/ delete")
 	parser.add_argument('endObj',nargs='?',default=os.getcwd(),help="the destination parent directory")
 	return parser.parse_args()
-	
+
 def main():
 	'''
 	do the thing
@@ -240,7 +256,7 @@ def main():
 	matches = []
 	mismatches = []
 	###END INIT###
-	
+
 	#housekeeping
 	startObj = args.startObj.replace("\\","/") #everything is gonna break if we don't do this for windows ppl
 	if args.v is True and args.endObj == os.getcwd(): #if we're verifying a directory against itself, not another directory
@@ -261,7 +277,7 @@ def main():
 	else: #if something is up we gotta exit
 		print("Buddy, something isn't right here...")
 		sys.exit()
-		
+
 	#make lists of files
 	flist = makeflist(startObj, endObj, startObjIsDir, args.a, hashlengths)
 	sflist = [x for x,_ in flist] #make list of startfiles
@@ -271,18 +287,18 @@ def main():
 	#copy files from source to destination
 	if args.v is False and args.nm is False:
 		copyfiles(flist)
-	
+
 	#make dicts of filenames : hashes
 	if args.nm is False:
 		ehd = makehlist(eflist, args.a, hashlength, grip) #end hash dictionary
 	shd = makehlist(sflist, args.a, hashlength, True) #start hash dictionary
-	
+
 	#print the hashes
 	if args.np is False:
 		sfhflist = printhashes(sflist,shd,eflist,ehd,args.a)
 	elif args.np is True:
 		sfhflist = []
-		
+
 	#compare the dict values and provide feedback
 	if args.nm is False:
 		matches, mismatches = compare(shd, ehd)
@@ -291,11 +307,11 @@ def main():
 			print("srce " + skey + " " + shd[skey])
 	for m in mismatches:
 		print("The following file hash did not match: " + m)
-	
+
 	#based on feedback, remove start objects
 	if args.c is False and args.v is False and args.nm is False:
 		deletefiles(sflist,sfhflist,startObj,matches,startObjIsDir,hashlengths)
-		
+
 	#print log to cwd of what happened
 	if args.l is True:
 		log(matches,mismatches,ehd)
