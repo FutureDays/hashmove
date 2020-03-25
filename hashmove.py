@@ -26,7 +26,7 @@ import getpass
 import subprocess
 
 #generate list of destination files of pairs of start and end files
-def makeFileList(sourceList,dest,hashalg,hashlengths):
+def makeFileList(sourceList,dest,hashalg,hashlengths,excludeRoot):
 	'''
 	returns a list of file(s) to hashmove
 	'''
@@ -38,6 +38,10 @@ def makeFileList(sourceList,dest,hashalg,hashlengths):
 			flist.extend([((s + "." + hashalg),(destinationObj + "." + hashalg))])
 		#if the start object is a directory things get tricky
 		elif os.path.isdir(s) is True:
+			if excludeRoot:
+				rootDirName = ""
+			else:
+				rootDirName = os.path.basename(s)
 			if not s.endswith("/"):
 				s = s + "/" #later, when we do some string subs, this keeps os.path.join() from breaking on a leading / I HATE HAVING TO DO THIS
 			for dirs, subdirs, files in os.walk(s): #walk recursively through the dirtree
@@ -45,7 +49,7 @@ def makeFileList(sourceList,dest,hashalg,hashlengths):
 					#directoryName = (os.path.basename(os.path.dirname(dirs)))
 					b = os.path.join(dirs,x) #make the full path to the file
 					b = b.replace(s,'') #extract just path relative to startObj (the subdirtree that x is in)
-					destinationObj = os.path.join(dest,b) #recombine the subdirtree with given destination (and file.extension)
+					destinationObj = os.path.join(dest,rootDirName,b) #recombine the subdirtree with given destination (and file.extension)
 					sourceFile = os.path.join(dirs, x) #grab the start file full path
 					sourceFilename, ext = os.path.splitext(sourceFile) #separate extension from filename
 					sourceBasename = os.path.basename(sourceFilename)
@@ -195,6 +199,7 @@ def make_args():
 	parser.add_argument('-q','--quiet',action='store_true',dest='q',default=False,help="quiet mode, don't print anything to console")
 	parser.add_argument('-a','--algorithm',action='store',dest='a',default='md5',choices=['md5','sha1','sha256','sha512'],help="the hashing algorithm to use")
 	parser.add_argument('sourceAndDestObj',nargs='+',help="the file or directory to hash/ move/ copy/ verify/ delete")
+	parser.add_argument('-xr','--bottomFolder',action='store_true',dest='xr',default=False,help="eXclude Root mode. This will move the folders and directories in the selecte input folders directly in the output, rather than the standard rsync style nesting")
 	#parser.add_argument('destinationDir',nargs='?',default=os.getcwd(),help="the destination parent directory")
 	return parser.parse_args()
 
@@ -208,7 +213,7 @@ def main():
 	flist = []
 	###END INIT###
 
-
+	print(args.xr)
 	#housekeeping
 	if len(args.sourceAndDestObj) < 2: #if less than two input arguments we have to exit
 		print("CRITICAL ERROR: You must give this script at least two input arguments, with the last argument being the destination directory")
@@ -231,7 +236,7 @@ def main():
 	hashlength = hashlengths[args.a] #set value for comparison later
 
 	#Create giant list of input files and output files
-	flist = makeFileList(sourceList,destinationDir,args.a,hashlengths)
+	flist = makeFileList(sourceList,destinationDir,args.a,hashlengths,args.xr)
 
 	#updates file list, removing all files that were already there
 	flist = removeUpToDateFiles(flist, args.a, hashlength)
