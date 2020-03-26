@@ -75,12 +75,21 @@ def generateHash(inputFile, hashalg, blocksize=65536):
 	return hasher.hexdigest()
 
 #write hash to a file
-def writeHash(inputFile, hashalg):
-	hash = generateHash(inputFile, hashalg)
-	hashFile = inputFile + "." + hashalg
-	txt = open(hashFile, "w") #old school
-	txt.write(hash + " *" + os.path.basename(inputFile))
-	txt.close()
+def writeHash(inputFile, hashalg, logDir, resultsList):
+	logNewLine("Writing New Sidecar Hash For " + os.path.basename(inputFile) + "........",logDir)
+	try:
+		hash = generateHash(inputFile, hashalg)
+		hashFile = inputFile + "." + hashalg
+		txt = open(hashFile, "w") #old school
+		txt.write(hash + " *" + os.path.basename(inputFile))
+		txt.close()
+		logSameLine("Complete!",logDir)
+		resultsList[1] += 1
+		return resultsList
+	except:
+		logSameLine("ERROR!",logDir)
+		resultsList[4] += 1
+		return resultsList
 
 #gets the hash from a sidecar text file
 def readHash(hashFile, hashlength):
@@ -89,16 +98,23 @@ def readHash(hashFile, hashlength):
 	return storedHash
 
 #verify's a hash from the sidecar file
-def verifyHash(sidecarFile, hashalg, hashlength):
-	writtenHash = readHash(sidecarFile, hashlength) #read the hash written in the sidecar
-	print("file: " + os.path.basename(sidecarFile) + "\t\tVerifying Checkum!")
-	generatedHash = generateHash(sidecarFile.replace("." + hashalg, ""), hashalg) #generate the hash of the associated file
-	if writtenHash == generatedHash: #then verify the checksums
-		pass
-		print("file: " + os.path.basename(sidecarFile) + "\t\tChecksum Verified!")
-	else:
-		pass
-		print("file: " + os.path.basename(sidecarFile) + "\t\tERROR: Checksum Verification Failed!")
+def verifyHash(sidecarFile, hashalg, hashlength, logDir, resultsList):
+	logNewLine("Verifying Hash For " + os.path.basename(sidecarFile) + "........",logDir)
+	try:
+		writtenHash = readHash(sidecarFile, hashlength) #read the hash written in the sidecar
+		generatedHash = generateHash(sidecarFile.replace("." + hashalg, ""), hashalg) #generate the hash of the associated file
+		if writtenHash == generatedHash: #then verify the checksums
+			pass
+			logSameLine("Complete! Checksum Verified",logDir)
+			resultsList[2] += 1
+			return resultsList
+		else:
+			pass
+			logSameLine("ERROR: Checksum Verification Failed!",logDir)
+			resultsList[4] += 1
+			return resultsList
+	except:
+		logSameLine("ERROR!",logDir)
 
 def removeUpToDateFiles(flist, hashalg, hashlength):
 	'''
@@ -109,16 +125,16 @@ def removeUpToDateFiles(flist, hashalg, hashlength):
 	for sf,df in flist: #get each item of flist, which contains a source file (sf) and destination file (df)
 		if os.path.exists(df): #if the destination file exists
 			if (hashalg in df): #this portion checks to see if a sidecar exists in the destination without an associated file.
+				if not os.path.exists(sf): #if the destination checksum exists but the source doesn't then reload the hash. if we don't do this it can crash in some cases
+					reloadFileList.extend([(sf,df)])
 				if not os.path.exists(df.replace("." + hashalg, "")):
 					reloadFileList.extend([(sf,df)]) #if this happens we need to reload the sidecar file so that it verifies when the assocaited file is reloaded
-			else:
-				pass
-			if (compare_modtime(sf,df)) and (compare_filesize(sf,df)): #if source files are older than destination and same size, things are good
+			elif (compare_modtime(sf,df)) and (compare_filesize(sf,df)): #if source files are older than destination and same size, things are good
 				removeFilesList.extend([(sf,df)])
 				if (hashalg not in sf): #this removes the associated sidecar files
 					removeFilesList.extend(((sf + "." + hashalg),(df + "." + hashalg)))
 			else: #if destination files are older than source files, need to resync
-				pass
+				pass #leave item in the list, so it's reloaded
 	flist = [x for x in flist if x not in removeFilesList] #remove the files already there from the file list
 	flist.extend(reloadFileList)
 	return flist
@@ -126,48 +142,64 @@ def removeUpToDateFiles(flist, hashalg, hashlength):
 
 
 #performs the copy from one location (src) to another (dest)
-def copyFiles(src,dest):
+def copyFiles(src,dest,logDir,resultsList):
 	'''
 	copies src file to the dest location
 	using the native copy utility for a given platform
 	'''
-	win=mac=False
-	if sys.platform.startswith("darwin"):
-		mac=True
-	elif sys.platform.startswith("win"):
-		win=True
-	cmd=None
-	_dest = os.path.dirname(os.path.normpath(dest))
-	if not os.path.exists(_dest):
-		os.makedirs(_dest)
-	if mac:
-		cmd=['cp',src,dest]
-	elif win:
-		srce = os.path.dirname(src)
-		dest = os.path.dirname(dest)
-		name,ext = os.path.split(src)
-		cmd=['robocopy',srce,dest,ext]
-		print(cmd)
-	print("file: " + os.path.basename(src) + "\t\tcopying from source to destination...")
-	subprocess.call(cmd)
-	print("file: " + os.path.basename(src) + "\t\tDone!")
+	logNewLine("Copying file: " + os.path.basename(src) + "........",logDir)
+	try:
+		win=mac=False
+		if sys.platform.startswith("darwin"):
+			mac=True
+		elif sys.platform.startswith("win"):
+			win=True
+		cmd=None
+		_dest = os.path.dirname(os.path.normpath(dest))
+		if not os.path.exists(_dest):
+			os.makedirs(_dest)
+		if mac:
+			cmd=['cp',src,dest]
+		elif win:
+			srce = os.path.dirname(src)
+			dest = os.path.dirname(dest)
+			name,ext = os.path.split(src)
+			cmd=['robocopy',srce,dest,ext]
+			print(cmd)
+
+		subprocess.call(cmd)
+		logSameLine("Complete!",logDir)
+		resultsList[0] += 1
+		return resultsList
+	except:
+		logSameLine("ERROR!",logDir)
+		resultsList[4] += 1
+		return resultsList
 
 #this steps through the file list, creates checksums when needed, moves files, and verifies
-def processList(flist, hashalg, hashlength):
+def processList(flist, hashalg, hashlength, logDir, resultsList):
 	for sf,df in flist:
 		if (hashalg not in sf):	#if not a hash file
 			if os.path.exists(sf + "." + hashalg): #see if hash file exists
 				if compare_modtime(sf, sf + "." + hashalg): #check if hash file is newer than actual file
-					copyFiles(sf,df) #if hash is newer, we're good to move the file
+					resultsList = copyFiles(sf,df,logDir, resultsList) #if hash is newer, we're good to move the file
 				else:
-					writeHash(sf, hashalg) #if has is older, recreate sidecar file
-					copyFiles(sf,df) #once the hash is written we can move the file
+					logNewLine("WARNING! The checksum file for " + os.path.basename(sf) + " is out of date. Creating a new sidecare checksum file",logDir)
+					resultsList[3] += 1
+					resultsList = writeHash(sf, hashalg,logDir,resultsList) #if has is older, recreate sidecar file
+					resultsList = copyFiles(sf,df,logDir, resultsList) #once the hash is written we can move the file
 			else:
-				writeHash(sf, hashalg) #if no sidecar file exists, make one!
-				copyFiles(sf,df) #once the hash is written we can move the file
+				resultsList = writeHash(sf, hashalg,logDir, resultsList) #if no sidecar file exists, make one!
+				resultsList = copyFiles(sf,df,logDir, resultsList) #once the hash is written we can move the file
 		else: #if it's a hash file
-			copyFiles(sf,df) #move the hashe
-			verifyHash(df, hashalg, hashlength) #verify the checksum from the sidecar file
+			if os.path.exists(sf): #if the has exists
+				resultsList = copyFiles(sf,df,logDir, resultsList) #move the hashe
+				resultsList = verifyHash(df, hashalg, hashlength, logDir, resultsList) #verify the checksum from the sidecar file
+			else: #if the hash file doesn't exist, we gotta make it, then copy it, then verify it (this is important if the file and hash are loaded, but the source hash has been deleted. could be skipped if i could figure this out)
+				resultsList = writeHash(sf.replace("." + hashalg, ""), hashalg,logDir,resultsList) #write the hash
+				resultsList = copyFiles(sf,df,logDir, resultsList) #move the hash
+				resultsList = verifyHash(df, hashalg, hashlength, logDir, resultsList) #verify the checksum from the sidecar file
+	return resultsList
 
 #compares two files. If olderFile was created before newerFile then return true. else return false
 def compare_modtime(olderFile, newerFile):
@@ -192,17 +224,21 @@ def initLog(sourceList,destination,hashalg):
 	initializes log file
 	'''
 	txtFile = open(destination + "/LoadingScript.log", "a+")
-	txtFile.write("Load and Verify Script Started at: " + time.strftime("%Y-%m-%d_%H%M%S") + "\n")
+	txtFile.write("Load and Verify Script Started at: " + time.strftime("%Y-%m-%d_%H:%M:%S") + "\n")
 	for f in sourceList:
 		txtFile.write("From: " + f + "\n")
 	txtFile.write("To: " + destination + "\n")
 	txtFile.write("Hash algorithm: " + hashalg + "\n")
 	txtFile.write("\n\n")
  	txtFile.close()
-	print("ok")
 
-def logAddLine():
+def logNewLine(text,destination):
 	txtFile = open(destination + "/LoadingScript.log", "a+")
+	txtFile.write("\n" + time.strftime("%Y-%m-%d_%H:%M:%S") + ": " + text)
+
+def logSameLine(text,destination):
+	txtFile = open(destination + "/LoadingScript.log", "a+")
+	txtFile.write(text)
 
 def make_args():
 	'''
@@ -225,6 +261,12 @@ def main():
 	args = make_args()
 	###INIT VARS###
 	flist = []
+	successCopyCount = 0
+	successWriteHashCount = 0
+	successVerifyHashCount = 0
+	warningCount = 0
+	errorCount =0
+	resultsList = [successCopyCount,successWriteHashCount,successVerifyHashCount,warningCount,errorCount]
 	###END INIT###
 
 	#housekeeping
@@ -259,8 +301,16 @@ def main():
 	flist = removeUpToDateFiles(flist, args.a, hashlength)
 
 	#process files in the list
-	processList(flist, args.a, hashlength)
+	resultsList = processList(flist, args.a, hashlength, destinationDir, resultsList)
 
+	print("\nCopy and Verify Completed! Here are the results. See log for details")
+	print("\nFiles Copied: " + str(resultsList[0]))
+	print("Checksums Written: " + str(resultsList[1]))
+	print("Checksums Verified: " + str(resultsList[2]))
+	print("Warnings: " + str(resultsList[3]))
+	print("Errors: " + str(resultsList[4]))
+	print("\n")
 
+	logSameLine("\n***************************\n\n\n\n",destinationDir)
 
 main()
